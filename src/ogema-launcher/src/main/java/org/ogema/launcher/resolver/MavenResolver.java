@@ -64,165 +64,169 @@ import org.ogema.launcher.OgemaLauncher;
  * Searches maven artifacts in local or remote repositories. Has support for
  * simple HTTP authentication configured in user's maven settings.
  *
- * @author jlapp
- * edited by mperez
+ * @author jlapp edited by mperez
  */
 public class MavenResolver extends BundleResolver {
-    
-    /** System property ({@value}) holding the location of an optional maven repository
-     configuration file (default={@value #REPOSITORY_CONFIG_DEFAULT}) */
+
+    /**
+     * System property ({@value}) holding the location of an optional maven
+     * repository configuration file
+     * (default={@value #REPOSITORY_CONFIG_DEFAULT})
+     */
     public static final String REPOSITORY_CONFIG = "ogema.launcher.repositories";
     public static final String REPOSITORY_CONFIG_DEFAULT = "launcher-repositories.properties";
-    
-	private static final String DEFAULT_RELEASE_UPDATE_POLICY = RepositoryPolicy.UPDATE_POLICY_NEVER;
-	private static final String DEFAULT_SNAPSHOT_UPDATE_POLICY = RepositoryPolicy.UPDATE_POLICY_DAILY;
-	private static final String DEFAULT_CHECKSUM_POLICY = RepositoryPolicy.CHECKSUM_POLICY_FAIL;
-	
-	private static final RepositoryPolicy DEF_DISABLED_POLICY = new RepositoryPolicy(false, RepositoryPolicy.UPDATE_POLICY_NEVER, null);
-	private static final RepositoryPolicy DEF_RELEASE_POLICY = new RepositoryPolicy(true, DEFAULT_RELEASE_UPDATE_POLICY, DEFAULT_CHECKSUM_POLICY);
-	private static final RepositoryPolicy DEF_SNAPSHOT_POLICY = new RepositoryPolicy(true, DEFAULT_SNAPSHOT_UPDATE_POLICY, DEFAULT_CHECKSUM_POLICY);
-	
-	// TODO: command line switch for remoteFirst?
-	protected RepositorySystem _repoSys;
-	protected RepositorySystemSession _session;
-	protected Settings _mavenSettings;
-	protected List<RemoteRepository> _remoteRepos = new ArrayList<RemoteRepository>();
 
-	private boolean _offline = false;
-	private boolean _mavenRemoteFirst = true; //check remote repositories before local?
+    private static final String DEFAULT_RELEASE_UPDATE_POLICY = RepositoryPolicy.UPDATE_POLICY_NEVER;
+    private static final String DEFAULT_SNAPSHOT_UPDATE_POLICY = RepositoryPolicy.UPDATE_POLICY_DAILY;
+    private static final String DEFAULT_CHECKSUM_POLICY = RepositoryPolicy.CHECKSUM_POLICY_FAIL;
+
+    private static final RepositoryPolicy DEF_DISABLED_POLICY = new RepositoryPolicy(false, RepositoryPolicy.UPDATE_POLICY_NEVER, null);
+    private static final RepositoryPolicy DEF_RELEASE_POLICY = new RepositoryPolicy(true, DEFAULT_RELEASE_UPDATE_POLICY, DEFAULT_CHECKSUM_POLICY);
+    private static final RepositoryPolicy DEF_SNAPSHOT_POLICY = new RepositoryPolicy(true, DEFAULT_SNAPSHOT_UPDATE_POLICY, DEFAULT_CHECKSUM_POLICY);
+
+    // TODO: command line switch for remoteFirst?
+    protected RepositorySystem _repoSys;
+    protected RepositorySystemSession _session;
+    protected Settings _mavenSettings;
+    protected List<RemoteRepository> _remoteRepos = new ArrayList<RemoteRepository>();
+
+    private boolean _offline = false;
+    private boolean _mavenRemoteFirst = true; //check remote repositories before local?
     private String _repositoryConfig;
 
-	protected MavenResolver(boolean offline, String repositoryConfig) {
-		this._offline = offline;
-        _repositoryConfig = repositoryConfig == null ?
-            System.getProperty(REPOSITORY_CONFIG, REPOSITORY_CONFIG_DEFAULT) :
-                repositoryConfig;
+    protected MavenResolver(boolean offline, String repositoryConfig) {
+        this._offline = offline;
+        _repositoryConfig = repositoryConfig == null
+                ? System.getProperty(REPOSITORY_CONFIG, REPOSITORY_CONFIG_DEFAULT)
+                : repositoryConfig;
 
-		String mavenHome = System.getenv("M2_HOME");
-		String user_home = System.getProperty("user.home");
-		File mavenUserSettingsFile = new File(user_home, ".m2/settings.xml");
-		File mavenGlobalSettingsFile = null;
-		if (mavenHome != null) {
-			mavenGlobalSettingsFile = new File(mavenHome, "conf/settings.xml");
-		} else {
-			OgemaLauncher.LOGGER.warning(this.getClass().getSimpleName() + ": M2_HOME not set");
-			if (!mavenUserSettingsFile.exists()) {
-				OgemaLauncher.LOGGER.warning(
-						this.getClass().getSimpleName() + ": no user settings found, working without any configuration");
-			}
-		}
-		try {
-			init(mavenGlobalSettingsFile, mavenUserSettingsFile);
-		} catch (SettingsBuildingException sbe) {
-			throw new RuntimeException("Maven SettingsBuildingException: "
-					+ sbe.getLocalizedMessage());
-		}
-	}
+        String mavenHome = System.getenv("M2_HOME");
+        String user_home = System.getProperty("user.home");
+        File mavenUserSettingsFile = new File(user_home, ".m2/settings.xml");
+        File mavenGlobalSettingsFile = null;
+        if (mavenHome != null) {
+            mavenGlobalSettingsFile = new File(mavenHome, "conf/settings.xml");
+        } else {
+            OgemaLauncher.LOGGER.warning(this.getClass().getSimpleName() + ": M2_HOME not set");
+            if (!mavenUserSettingsFile.exists()) {
+                OgemaLauncher.LOGGER.warning(
+                        this.getClass().getSimpleName() + ": no user settings found, working without any configuration");
+            }
+        }
+        try {
+            init(mavenGlobalSettingsFile, mavenUserSettingsFile);
+        } catch (SettingsBuildingException sbe) {
+            throw new RuntimeException("Maven SettingsBuildingException: "
+                    + sbe.getLocalizedMessage());
+        }
+    }
 
-	private void init(File globalMavenSettings, File userMavenSettings) throws SettingsBuildingException {
-		SettingsBuildingRequest sbreq = new DefaultSettingsBuildingRequest();
-		if (globalMavenSettings != null && globalMavenSettings.exists()) {
-			sbreq.setGlobalSettingsFile(globalMavenSettings);
-		}
-		if (userMavenSettings != null && userMavenSettings.exists()) {
-			sbreq.setUserSettingsFile(userMavenSettings);
-		}
-		SettingsBuilder msb = new DefaultSettingsBuilderFactory().newInstance();
-		SettingsBuildingResult sbr = msb.build(sbreq);
-		_mavenSettings = sbr.getEffectiveSettings();
+    private void init(File globalMavenSettings, File userMavenSettings) throws SettingsBuildingException {
+        SettingsBuildingRequest sbreq = new DefaultSettingsBuildingRequest();
+        if (globalMavenSettings != null && globalMavenSettings.exists()) {
+            sbreq.setGlobalSettingsFile(globalMavenSettings);
+        }
+        if (userMavenSettings != null && userMavenSettings.exists()) {
+            sbreq.setUserSettingsFile(userMavenSettings);
+        }
+        SettingsBuilder msb = new DefaultSettingsBuilderFactory().newInstance();
+        SettingsBuildingResult sbr = msb.build(sbreq);
+        _mavenSettings = sbr.getEffectiveSettings();
 
-		String localRepository = _mavenSettings.getLocalRepository();
-		if (localRepository == null) {
-			localRepository = new File(System.getProperty("user.home"), ".m2/repository").getAbsolutePath();
-			OgemaLauncher.LOGGER.log(Level.FINER,
-					this.getClass().getSimpleName() + ": using default local repository path: {0}", localRepository);
-			OgemaLauncher.LOGGER.log(Level.FINER,
-					this.getClass().getSimpleName() + ": default local repository path exists: {0}",
-					new File(localRepository).exists());
+        String localRepository = _mavenSettings.getLocalRepository();
+        if (localRepository == null) {
+            localRepository = new File(System.getProperty("user.home"), ".m2/repository").getAbsolutePath();
+            OgemaLauncher.LOGGER.log(Level.FINER,
+                    this.getClass().getSimpleName() + ": using default local repository path: {0}", localRepository);
+            OgemaLauncher.LOGGER.log(Level.FINER,
+                    this.getClass().getSimpleName() + ": default local repository path exists: {0}",
+                    new File(localRepository).exists());
 
-		}
-		File localRepoDir = new File(localRepository);
+        }
+        File localRepoDir = new File(localRepository);
 
-		LocalRepository localRepo = new LocalRepository(localRepoDir);
-		_repoSys = newRepositorySystem();
-		_session = newSession(_repoSys, localRepo);
+        LocalRepository localRepo = new LocalRepository(localRepoDir);
+        _repoSys = newRepositorySystem();
+        _session = newSession(_repoSys, localRepo);
 
-		Map<String, RemoteRepository> prototypes = new LinkedHashMap<>();
-		// adding default ogema repositories first... can be overridden by maven settings
-		initDefaultRepositories(prototypes);
+        Map<String, RemoteRepository> prototypes = new LinkedHashMap<>();
+        // adding default ogema repositories first... can be overridden by maven settings
+        initDefaultRepositories(prototypes);
 
-		/* Add all remote repositories found in local settings in all profiles. Memorize
+        /* Add all remote repositories found in local settings in all profiles. Memorize
 		 * if central Maven repository "central" is amongst them. */
-		boolean has_central = false;
-		List<String> activeProfiles = _mavenSettings.getActiveProfiles();
-		for (Profile p : _mavenSettings.getProfiles()) {
-			if (activeProfiles.contains(p.getId())) {
-				OgemaLauncher.LOGGER.finer(this.getClass().getSimpleName() + ": active profile: " + p.getId());
-				for (Repository r : p.getRepositories()) {
-					OgemaLauncher.LOGGER.finer(this.getClass().getSimpleName() + ": " + r.getId() + "=" + r.getUrl());
-					if ("central".equalsIgnoreCase(r.getId())) {
-						has_central = true;
-					}
+        boolean has_central = false;
+        List<String> activeProfiles = _mavenSettings.getActiveProfiles();
+        for (Profile p : _mavenSettings.getProfiles()) {
+            if (activeProfiles.contains(p.getId())) {
+                OgemaLauncher.LOGGER.finer(this.getClass().getSimpleName() + ": active profile: " + p.getId());
+                for (Repository r : p.getRepositories()) {
+                    OgemaLauncher.LOGGER.finer(this.getClass().getSimpleName() + ": " + r.getId() + "=" + r.getUrl());
+                    if ("central".equalsIgnoreCase(r.getId())) {
+                        has_central = true;
+                    }
 
-					Authentication auth = null;
-					for (Server s : _mavenSettings.getServers()) {
-						if (s.getId().equals(r.getId())) {
-							OgemaLauncher.LOGGER.finer(this.getClass().getSimpleName() + ": have authentication for " + s.getId());
-							auth = new AuthenticationBuilder()
-							.addUsername(s.getUsername())
-							.addPassword(s.getPassword()).build();
-							break;
-						}
-					}
-					
-					// FIXME: there is no copy constructor or similar in aether? creating new objects
-					// for policies for now ...
-					org.apache.maven.settings.RepositoryPolicy snapshotPolicySettings = r.getSnapshots();
-					// set default repo policy here because aether won't set defaults ...
-					RepositoryPolicy snapshotPolicy = DEF_SNAPSHOT_POLICY;
-					if(snapshotPolicySettings != null) {
-						snapshotPolicy = new RepositoryPolicy(snapshotPolicySettings.isEnabled(),
-								snapshotPolicySettings.getUpdatePolicy(), snapshotPolicySettings.getChecksumPolicy());
-					} // else: use default
-					
-					org.apache.maven.settings.RepositoryPolicy releasePolicySettings = r.getReleases();
-					// set default repo policy here because aether won't set defaults ...
-					RepositoryPolicy releasePolicy = DEF_RELEASE_POLICY;
-					if(releasePolicySettings != null) {
-						releasePolicy = new RepositoryPolicy(releasePolicySettings.isEnabled(),
-								releasePolicySettings.getUpdatePolicy(), releasePolicySettings.getChecksumPolicy());
-					} // else: use default
-					
-					RemoteRepository remote = new RemoteRepository.Builder(
-							r.getId(), "default", r.getUrl())
-							.setAuthentication(auth).setSnapshotPolicy(snapshotPolicy)
-							.setReleasePolicy(releasePolicy).build();
+                    Authentication auth = null;
+                    for (Server s : _mavenSettings.getServers()) {
+                        if (s.getId().equals(r.getId())) {
+                            OgemaLauncher.LOGGER.finer(this.getClass().getSimpleName() + ": have authentication for " + s.getId());
+                            auth = new AuthenticationBuilder()
+                                    .addUsername(s.getUsername())
+                                    .addPassword(s.getPassword()).build();
+                            break;
+                        }
+                    }
 
-					prototypes.put(remote.getUrl(), remote);
-				}
-			}
-		}
+                    // FIXME: there is no copy constructor or similar in aether? creating new objects
+                    // for policies for now ...
+                    org.apache.maven.settings.RepositoryPolicy snapshotPolicySettings = r.getSnapshots();
+                    // set default repo policy here because aether won't set defaults ...
+                    RepositoryPolicy snapshotPolicy = DEF_SNAPSHOT_POLICY;
+                    if (snapshotPolicySettings != null) {
+                        snapshotPolicy = new RepositoryPolicy(snapshotPolicySettings.isEnabled(),
+                                snapshotPolicySettings.getUpdatePolicy(), snapshotPolicySettings.getChecksumPolicy());
+                    } // else: use default
 
-		/* If central repository has not been listed/overwritten, add it it to the list of
+                    org.apache.maven.settings.RepositoryPolicy releasePolicySettings = r.getReleases();
+                    // set default repo policy here because aether won't set defaults ...
+                    RepositoryPolicy releasePolicy = DEF_RELEASE_POLICY;
+                    if (releasePolicySettings != null) {
+                        releasePolicy = new RepositoryPolicy(releasePolicySettings.isEnabled(),
+                                releasePolicySettings.getUpdatePolicy(), releasePolicySettings.getChecksumPolicy());
+                    } // else: use default
+
+                    RemoteRepository remote = new RemoteRepository.Builder(
+                            r.getId(), "default", r.getUrl())
+                            .setAuthentication(auth).setSnapshotPolicy(snapshotPolicy)
+                            .setReleasePolicy(releasePolicy).build();
+                    OgemaLauncher.LOGGER.log(Level.FINER, "{0}: {1} snapshot policy: {2}",
+                            new Object[]{this.getClass().getSimpleName(), r.getUrl(), snapshotPolicy});
+                    prototypes.put(remote.getUrl(), remote);
+                }
+            }
+        }
+
+        /* If central repository has not been listed/overwritten, add it it to the list of
 		 * remote repositories. */
-		if (!has_central) {
-			prototypes.put("http://repo1.maven.org/maven2", new RemoteRepository.Builder(
-					"central", "default", "http://repo1.maven.org/maven2").setReleasePolicy(DEF_RELEASE_POLICY)
-					.setSnapshotPolicy(DEF_SNAPSHOT_POLICY).build());
-		}
-		
-		// set the proxies for those repositories that we've added:
-		for(RemoteRepository prototype : prototypes.values()) {
-			Proxy proxy = _session.getProxySelector().getProxy(prototype);
-			if(proxy != null) {
-				OgemaLauncher.LOGGER.finer(this.getClass().getSimpleName() + ": using proxy (" + proxy.getHost() + ") for remote repository: "
-						+ prototype.getUrl());
-			}
-			_remoteRepos.add(new RemoteRepository.Builder(prototype).setProxy(
-					proxy).build());
-		}
-	}
-/*
+        if (!has_central) {
+            prototypes.put("http://repo1.maven.org/maven2", new RemoteRepository.Builder(
+                    "central", "default", "http://repo1.maven.org/maven2").setReleasePolicy(DEF_RELEASE_POLICY)
+                    .setSnapshotPolicy(DEF_SNAPSHOT_POLICY).build());
+        }
+
+        // set the proxies for those repositories that we've added:
+        for (RemoteRepository prototype : prototypes.values()) {
+            Proxy proxy = _session.getProxySelector().getProxy(prototype);
+            if (proxy != null) {
+                OgemaLauncher.LOGGER.finer(this.getClass().getSimpleName() + ": using proxy (" + proxy.getHost() + ") for remote repository: "
+                        + prototype.getUrl());
+            }
+            _remoteRepos.add(new RemoteRepository.Builder(prototype).setProxy(
+                    proxy).build());
+        }
+    }
+
+    /*
 	private void initDefaultRepositories(Map<String, RemoteRepository> prototypes) {
 		prototypes.put(OGEMA_REPO_BASE_URL + LIBS_REL_URL,
 				new RemoteRepository.Builder("ogema-releases", "default",
@@ -241,40 +245,40 @@ public class MavenResolver extends BundleResolver {
 				OGEMA_REPO_BASE_URL + EXT_OS_URL).setReleasePolicy(DEF_RELEASE_POLICY)
 				.setSnapshotPolicy(DEF_DISABLED_POLICY).build());
 	}
-*/
+     */
     private void initDefaultRepositories(Map<String, RemoteRepository> prototypes) {
         try {
             Properties p = new Properties();
-            
+
             if (new File(_repositoryConfig).exists()) {
-                try (InputStream is = new FileInputStream(new File(_repositoryConfig))) {
+                try ( InputStream is = new FileInputStream(new File(_repositoryConfig))) {
                     p.load(is);
                 }
                 OgemaLauncher.LOGGER.log(Level.FINE, String.format("configuring maven repositories from file %s", _repositoryConfig));
             } else {
-                try (InputStream is = getClass().getResourceAsStream("/org/ogema/launcher/props/repositories.properties")) {
+                try ( InputStream is = getClass().getResourceAsStream("/org/ogema/launcher/props/repositories.properties")) {
                     p.load(is);
                 }
                 OgemaLauncher.LOGGER.log(Level.FINE, "configuring maven repositories from internal configuration file");
             }
-            
+
             String[] ids = p.get("ids").toString().split(",\\s*");
-            for (String id: ids) {
+            for (String id : ids) {
                 String url = p.getProperty(id).toString();
-                
+
                 RepositoryPolicy snapshotPolicy = DEF_SNAPSHOT_POLICY;
-                String snapshotPolicyParams = (String) p.getProperty(id+".snapshot-policy");
+                String snapshotPolicyParams = (String) p.getProperty(id + ".snapshot-policy");
                 if (snapshotPolicyParams != null) {
                     snapshotPolicy = parsePolicy(snapshotPolicyParams);
                 }
-                
+
                 RepositoryPolicy releasePolicy = DEF_RELEASE_POLICY;
-                String releasePolicyParams = (String) p.getProperty(id+".release-policy");
+                String releasePolicyParams = (String) p.getProperty(id + ".release-policy");
                 if (releasePolicyParams != null) {
                     releasePolicy = parsePolicy(releasePolicyParams);
                 }
-                String user = (String) p.getProperty(id+".user");
-                String password = (String) p.getProperty(id+".password");
+                String user = (String) p.getProperty(id + ".user");
+                String password = (String) p.getProperty(id + ".password");
                 Authentication auth = null;
                 if (user != null && password != null) {
                     OgemaLauncher.LOGGER.log(Level.FINE, "adding authentication for {0}", url);
@@ -285,7 +289,7 @@ public class MavenResolver extends BundleResolver {
                         .setAuthentication(auth).build();
                 prototypes.put(url, repo);
             }
-            
+
             if (OgemaLauncher.LOGGER.isLoggable(Level.FINE)) {
                 OgemaLauncher.LOGGER.log(Level.FINE, String.format("%d remote repositories:", prototypes.size()));
                 for (Map.Entry<String, RemoteRepository> entry : prototypes.entrySet()) {
@@ -297,7 +301,7 @@ public class MavenResolver extends BundleResolver {
                     String.format("error parsing repository configuration (%s?): %s", _repositoryConfig, ex.getMessage()), ex);
         }
     }
-    
+
     private static RepositoryPolicy parsePolicy(String propertyValue) {
         String[] params = propertyValue.split(",\\s*");
         boolean enabled = params[0].equalsIgnoreCase("enabled");
@@ -305,212 +309,226 @@ public class MavenResolver extends BundleResolver {
         String checksumPolicy = params.length > 2 ? params[2] : null;
         return new RepositoryPolicy(enabled, updatePolicy, checksumPolicy);
     }
-    
-	private static RepositorySystem newRepositorySystem() {
-		/*
+
+    private static RepositorySystem newRepositorySystem() {
+        /*
          * Aether's components implement org.eclipse.aether.spi.locator.Service to ease manual wiring and using the
          * prepopulated DefaultServiceLocator, we only need to register the repository connector and transporter
          * factories.
          */
         DefaultServiceLocator locator = MavenRepositorySystemUtils.newServiceLocator();
-        locator.addService( RepositoryConnectorFactory.class, BasicRepositoryConnectorFactory.class );
-        locator.addService( TransporterFactory.class, FileTransporterFactory.class );
-        locator.addService( TransporterFactory.class, HttpTransporterFactory.class );
+        locator.addService(RepositoryConnectorFactory.class, BasicRepositoryConnectorFactory.class);
+        locator.addService(TransporterFactory.class, FileTransporterFactory.class);
+        locator.addService(TransporterFactory.class, HttpTransporterFactory.class);
 
-        locator.setErrorHandler( new DefaultServiceLocator.ErrorHandler()
-        {
+        locator.setErrorHandler(new DefaultServiceLocator.ErrorHandler() {
             @Override
-            public void serviceCreationFailed( Class<?> type, Class<?> impl, Throwable exception )
-            {
+            public void serviceCreationFailed(Class<?> type, Class<?> impl, Throwable exception) {
                 exception.printStackTrace();
             }
-        } );
+        });
 
-        return locator.getService( RepositorySystem.class );
-	}
+        return locator.getService(RepositorySystem.class);
+    }
 
-	private RepositorySystemSession newSession(RepositorySystem system, LocalRepository localRepo) {
-		DefaultRepositorySystemSession session = new DefaultRepositorySystemSession();
-		session.setLocalRepositoryManager(system.newLocalRepositoryManager(session, localRepo));
-		system.newLocalRepositoryManager(session, localRepo);
-		DefaultProxySelector dps = new DefaultProxySelector();
-		for(org.apache.maven.settings.Proxy p : _mavenSettings.getProxies()) {
-			Authentication auth = new AuthenticationBuilder().addUsername(
-					p.getUsername()).addPassword(p.getPassword()).build();
-			Proxy proxy = new Proxy(p.getProtocol(), p.getHost(), p.getPort(), auth);
-			dps.add(proxy, p.getNonProxyHosts());
-		}
-		session.setProxySelector(dps);
+    private RepositorySystemSession newSession(RepositorySystem system, LocalRepository localRepo) {
+        DefaultRepositorySystemSession session = new DefaultRepositorySystemSession();
+        session.setLocalRepositoryManager(system.newLocalRepositoryManager(session, localRepo));
+        system.newLocalRepositoryManager(session, localRepo);
+        DefaultProxySelector dps = new DefaultProxySelector();
+        for (org.apache.maven.settings.Proxy p : _mavenSettings.getProxies()) {
+            Authentication auth = new AuthenticationBuilder().addUsername(
+                    p.getUsername()).addPassword(p.getPassword()).build();
+            Proxy proxy = new Proxy(p.getProtocol(), p.getHost(), p.getPort(), auth);
+            dps.add(proxy, p.getNonProxyHosts());
+        }
+        session.setProxySelector(dps);
 
-		// TODO add transfer listener so that the user gets informed about process ?
+        // TODO add transfer listener so that the user gets informed about process ?
 //		session.setTransferListener(new ConsoleTransferListener(System.out));
 //		session.setRepositoryListener(new ConsoleRepositoryListener());
+        return session;
+    }
 
-		return session;
-	}
+    /**
+     * Try to locate an artifact in local repository.
+     *
+     * @return {@link File} of the resolved artifact or <code>null</code> if it
+     * can't be resolved.
+     */
+    public File findLocalArtifact(Artifact art) {
+        if (art == null) {
+            throw new IllegalArgumentException("null argument");
+        }
 
-	/**
-	 * Try to locate an artifact in local repository.
-	 * 
-	 * @return {@link File} of the resolved artifact or <code>null</code> if
-	 * it can't be resolved.
-	 */
-	public File findLocalArtifact(Artifact art) {
-		if (art == null) {
-			throw new IllegalArgumentException("null argument");
-		}
+        if (isVersionRange(art)) {
+            try {
+                art = resolveVersionRange(art, null);
+            } catch (VersionRangeResolutionException e) {
+                // not resolvable
+                return null;
+            }
+        }
 
-		if(isVersionRange(art)) {
-			try {
-				art = resolveVersionRange(art, null);
-			} catch (VersionRangeResolutionException e) {
-				// not resolvable
-				return null;
-			}
-		}
+        ArtifactRequest req = new ArtifactRequest(art, null, null);
+        try {
+            ArtifactResult artRes = _repoSys.resolveArtifact(_session, req);
+            OgemaLauncher.LOGGER.log(Level.FINER, this.getClass().getSimpleName() + ": found {0} = {1}",
+                    new Object[]{art, artRes.getArtifact().getFile().getName()});
+            return artRes.getArtifact().getFile();
+        } catch (ArtifactResolutionException are) {
+            return null;
+        }
+    }
 
-		ArtifactRequest req = new ArtifactRequest(art, null, null);
-		try {
-			ArtifactResult artRes = _repoSys.resolveArtifact(_session, req);
-			OgemaLauncher.LOGGER.log(Level.FINER, this.getClass().getSimpleName() + ": found {0} = {1}",
-					new Object[]{art, artRes.getArtifact().getFile().getName()});
-			return artRes.getArtifact().getFile();
-		} catch (ArtifactResolutionException are) {
-			return null;
-		}
-	}
+    /**
+     * Try to locate an artifact in remote repositories.
+     *
+     * @return {@link File} of the resolved artifact or <code>null</code> if it
+     * can't be resolved.
+     */
+    public File findRemoteArtifact(Artifact art) {
+        if (art == null) {
+            throw new IllegalArgumentException("null argument");
+        }
 
-	/**
-	 * Try to locate an artifact in remote repositories.
-	 * 
-	 * @return {@link File} of the resolved artifact or <code>null</code> if
-	 * it can't be resolved.
-	 */
-	public File findRemoteArtifact(Artifact art) {
-		if (art == null) {
-			throw new IllegalArgumentException("null argument");
-		}
-		
-		if(isVersionRange(art)) {
-			try {
-				art = resolveVersionRange(art, _remoteRepos);
-			} catch (VersionRangeResolutionException e) {
-				// not resolvable
-				return null;
-			}
-		}
-		
-		ArtifactRequest req = new ArtifactRequest(art, _remoteRepos, null);
-		try {
-			ArtifactResult artRes = _repoSys.resolveArtifact(_session, req);
-			OgemaLauncher.LOGGER.log(Level.FINER, this.getClass().getSimpleName() + ": found {0} = {1} in {2}",
-					new Object[]{art, artRes.getArtifact().getFile().getName(), artRes.getRepository()});
-			return artRes.getArtifact().getFile();
-		} catch (ArtifactResolutionException ex) {
-		}
-		return null;
-	}
+        if (isVersionRange(art)) {
+            try {
+                art = resolveVersionRange(art, _remoteRepos);
+            } catch (VersionRangeResolutionException e) {
+                // not resolvable
+                return null;
+            }
+        }
 
-	/**
-	 * Try to find artifact in local and remote repositories.
-	 *
-	 * @param bi
-	 */
-	public File findArtifact(BundleInfo bi) {
-		if (bi == null || bi.getMavenCoords() == null) {
-			throw new IllegalArgumentException("null argument");
-		}
-		File result;
-		DefaultArtifact art = new DefaultArtifact(bi.getMavenCoords());
+        ArtifactRequest req = new ArtifactRequest(art, _remoteRepos, null);
+        try {
+            ArtifactResult artRes = _repoSys.resolveArtifact(_session, req);
+            if (OgemaLauncher.LOGGER.isLoggable(Level.FINER)) {
+                OgemaLauncher.LOGGER.log(Level.FINER,
+                        "{3}: found {0} = {1} in {2}",
+                        new Object[]{art, artRes.getArtifact().getFile().getName(),
+                            artRes.getRepository(), this.getClass().getSimpleName()});
+                OgemaLauncher.LOGGER.log(Level.FINER,
+                        "{3}: resolved {0}: {1}, {2}",
+                        new Object[]{art, artRes.isResolved(),
+                            artRes.getExceptions(), this.getClass().getSimpleName()});
+                if (artRes.getArtifact().isSnapshot()) {
+                    OgemaLauncher.LOGGER.log(Level.FINER,
+                            "{2}: snapshot {0} resolved to version {1}",
+                            new Object[]{art, artRes.getArtifact().getVersion(), this.getClass().getSimpleName()});
+                }
+            }
+            return artRes.getArtifact().getFile();
+        } catch (ArtifactResolutionException ex) {
+        }
+        return null;
+    }
 
-		if (_offline) {
-			result = findLocalArtifact(art);
-		} else {
-			if(_mavenRemoteFirst) {
-				// FIXME: find remote not always work ...
-				result = findRemoteArtifact(art);
-				if(result == null) result = findLocalArtifact(art);
-			} else {
-				result = findLocalArtifact(art);
-				if(result == null) result = findRemoteArtifact(art);
-			}
-		}
-		
-		return result;
-	}
+    /**
+     * Try to find artifact in local and remote repositories.
+     *
+     * @param bi
+     */
+    public File findArtifact(BundleInfo bi) {
+        if (bi == null || bi.getMavenCoords() == null) {
+            throw new IllegalArgumentException("null argument");
+        }
+        File result;
+        DefaultArtifact art = new DefaultArtifact(bi.getMavenCoords());
 
-	public void setMavenRemoteFirst(boolean mavenRemoteFirst) {
-		this._mavenRemoteFirst = mavenRemoteFirst;
-	}
+        if (_offline) {
+            result = findLocalArtifact(art);
+        } else {
+            if (_mavenRemoteFirst) {
+                // FIXME: find remote not always work ...
+                result = findRemoteArtifact(art);
+                if (result == null) {
+                    result = findLocalArtifact(art);
+                }
+            } else {
+                result = findLocalArtifact(art);
+                if (result == null) {
+                    result = findRemoteArtifact(art);
+                }
+            }
+        }
 
-	public void setOffline(boolean offline) {
-		this._offline = offline;
-	}
+        return result;
+    }
 
-	private boolean isVersionRange(Artifact art) {
-		// check if we have a version range:
-		VersionScheme versionScheme = new GenericVersionScheme();
-		try {
-			VersionConstraint versionConstraint = versionScheme.parseVersionConstraint(art.getVersion());
-			if(versionConstraint.getRange() != null) {
-				// we have a version range
-				return true;
-			}
-		} catch(InvalidVersionSpecificationException e) {
-			// invalid version specified!
-			OgemaLauncher.LOGGER.warning( String.format(
-					this.getClass().getSimpleName() + ": invalid version specified: %s:%s:%s -> " +
-							"trying to find the latest version and continuing",
-							art.getGroupId(), art.getArtifactId(),
-							art.getVersion()) );
-			art.setVersion("[0,");
-			isVersionRange(art);
-		}
-		// no range ... version specified.
-		return false;
-	}
+    public void setMavenRemoteFirst(boolean mavenRemoteFirst) {
+        this._mavenRemoteFirst = mavenRemoteFirst;
+    }
 
-	private Artifact resolveVersionRange(Artifact art, List<RemoteRepository> repositories)
-			throws VersionRangeResolutionException {
-		VersionRangeRequest rangeRequest = new VersionRangeRequest(art, repositories, null);
-		rangeRequest.setArtifact(art);
-		// FIXME: resolving version range in offline mode won't work ... aether is looking for 
-		// maven-metadata.xml which won't be updated / created without deploying 
-		VersionRangeResult rangeResult = _repoSys.resolveVersionRange( _session, rangeRequest );
-		return art.setVersion(rangeResult.getHighestVersion().toString());
-	}
+    public void setOffline(boolean offline) {
+        this._offline = offline;
+    }
 
-	@Override
-	protected boolean canHandle(BundleInfo bi) {
-		if(bi != null && bi.getMavenCoords() != null && !bi.getMavenCoords().isEmpty()) {
-			// expected string -> <groupId>:<artifactId>[:<extension>[:<classifier>]]:<version>
-			String mavenCoordPattern = "([^: ]+):([^: ]+)(:([^: ]*)(:([^: ]+))?)?:([^: ]+)";
-			if(bi.getMavenCoords().matches(mavenCoordPattern)) {
-				return true;
-			} else {
-				OgemaLauncher.LOGGER.warning(this.getClass().getSimpleName() + ": illegal maven coordinates - " +
-						"please check your config file. Maven coordinates: \"" +
-						bi.getMavenCoords() + "\"\nExpected: " +
-						mavenCoordPattern);
-			}
-		}
-		return false;
-	}
+    private boolean isVersionRange(Artifact art) {
+        // check if we have a version range:
+        VersionScheme versionScheme = new GenericVersionScheme();
+        try {
+            VersionConstraint versionConstraint = versionScheme.parseVersionConstraint(art.getVersion());
+            if (versionConstraint.getRange() != null) {
+                // we have a version range
+                return true;
+            }
+        } catch (InvalidVersionSpecificationException e) {
+            // invalid version specified!
+            OgemaLauncher.LOGGER.warning(String.format(
+                    this.getClass().getSimpleName() + ": invalid version specified: %s:%s:%s -> "
+                    + "trying to find the latest version and continuing",
+                    art.getGroupId(), art.getArtifactId(),
+                    art.getVersion()));
+            art.setVersion("[0,");
+            isVersionRange(art);
+        }
+        // no range ... version specified.
+        return false;
+    }
 
-	@Override
-	protected boolean resolveBundle(BundleInfo bi) {
-		File artifactFile = findArtifact(bi);
+    private Artifact resolveVersionRange(Artifact art, List<RemoteRepository> repositories)
+            throws VersionRangeResolutionException {
+        VersionRangeRequest rangeRequest = new VersionRangeRequest(art, repositories, null);
+        rangeRequest.setArtifact(art);
+        // FIXME: resolving version range in offline mode won't work ... aether is looking for 
+        // maven-metadata.xml which won't be updated / created without deploying 
+        VersionRangeResult rangeResult = _repoSys.resolveVersionRange(_session, rangeRequest);
+        return art.setVersion(rangeResult.getHighestVersion().toString());
+    }
 
-		if (artifactFile != null) {
-			bi.setMavenArtifactLocation(artifactFile.toURI());
-			bi.setPreferredLocation(artifactFile.toURI());
-			return true;
-		} else {
-			OgemaLauncher.LOGGER.log(Level.FINE, this.getClass().getSimpleName() + " - WARNING: {0} not found via maven",
-					bi.getMavenCoords());
-		}
+    @Override
+    protected boolean canHandle(BundleInfo bi) {
+        if (bi != null && bi.getMavenCoords() != null && !bi.getMavenCoords().isEmpty()) {
+            // expected string -> <groupId>:<artifactId>[:<extension>[:<classifier>]]:<version>
+            String mavenCoordPattern = "([^: ]+):([^: ]+)(:([^: ]*)(:([^: ]+))?)?:([^: ]+)";
+            if (bi.getMavenCoords().matches(mavenCoordPattern)) {
+                return true;
+            } else {
+                OgemaLauncher.LOGGER.warning(this.getClass().getSimpleName() + ": illegal maven coordinates - "
+                        + "please check your config file. Maven coordinates: \""
+                        + bi.getMavenCoords() + "\"\nExpected: "
+                        + mavenCoordPattern);
+            }
+        }
+        return false;
+    }
 
-		return false;
-	}
+    @Override
+    protected boolean resolveBundle(BundleInfo bi) {
+        File artifactFile = findArtifact(bi);
+
+        if (artifactFile != null) {
+            bi.setMavenArtifactLocation(artifactFile.toURI());
+            bi.setPreferredLocation(artifactFile.toURI());
+            return true;
+        } else {
+            OgemaLauncher.LOGGER.log(Level.FINE, this.getClass().getSimpleName() + " - WARNING: {0} not found via maven",
+                    bi.getMavenCoords());
+        }
+
+        return false;
+    }
 
 }

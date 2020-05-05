@@ -448,6 +448,8 @@ public class OgemaFramework {
 		}
 
 		Map<String, List<BundleInfo>> bundlesToInstall = initBundlesToInstall(bundlesWithoutDuplicates);
+        UninstalledFiles.removeUninstalled(bundlesToInstall);
+        
 		FrameworkUtil.doCleanStart(clean, frameworkConfig, frameworkConfig.getDeleteList());
 
 		if (!FrameworkUtil.createOgemaUserdataPath()) {
@@ -549,6 +551,7 @@ public class OgemaFramework {
 							+ ". Using default instead: " + (highestStartLevel + 1), e);
 				}
 			}
+            framework.getBundleContext().addBundleListener(new UninstalledFiles().getListener());
 			// start framework now -> starting it earlier will lead to non updated
 			// bundles at the initial start if clean flag isn't set.
 			startFramework();
