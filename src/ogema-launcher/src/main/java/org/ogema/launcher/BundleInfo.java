@@ -10,6 +10,9 @@ package org.ogema.launcher;
 
 import java.io.File;
 import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import org.ogema.launcher.resolver.BundleFileResolver;
 import org.ogema.launcher.resolver.WorkspaceBundleResolver;
@@ -254,6 +257,21 @@ public class BundleInfo implements Comparable<BundleInfo> {
 	public void setPreferredLocation(URI preferredLocation) {
 		this.preferredLocation = preferredLocation;
 	}
+    
+    public File getPreferredLocationFile() {
+        switch (preferredLocation.getScheme()) {
+            case "file" : return new File(preferredLocation.getPath());
+            case "reference" : {
+                try {
+                    return new File(new URI(preferredLocation.getSchemeSpecificPart()).getPath());
+                } catch (URISyntaxException ex) {
+                    OgemaLauncher.LOGGER.log(Level.SEVERE, "", ex);
+                    return null;
+                }
+            }
+            default : return null;
+        }
+    }
 
 	public File getFileLocation() {
 		if(fileLocation == null) {

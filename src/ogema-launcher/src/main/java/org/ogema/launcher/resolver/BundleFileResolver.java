@@ -20,8 +20,16 @@ import org.ogema.launcher.OgemaLauncher;
  * @author mperez
  */
 public class BundleFileResolver extends BundleResolver {
+    
+    final boolean fileAsReference;
+    final String protocolPrefix;
 	
-	protected BundleFileResolver() {}
+	protected BundleFileResolver(boolean fileAsReference) {
+        this.fileAsReference = fileAsReference;
+        protocolPrefix = fileAsReference
+                ? "reference:file:./"
+                : "file:./";
+    }
 
 	@Override
 	protected boolean canHandle(BundleInfo bi) {
@@ -36,7 +44,7 @@ public class BundleFileResolver extends BundleResolver {
             URI bundleURI = bi.getFileLocation().toURI();
             URI workingDirURI = new File(System.getProperty("user.dir")).toURI();
             bundleURI = workingDirURI.relativize(bundleURI);
-            bi.setPreferredLocation(URI.create("file:./"+bundleURI.toString()));
+            bi.setPreferredLocation(URI.create(protocolPrefix+bundleURI.toString()));
 			OgemaLauncher.LOGGER.fine(this.getClass().getSimpleName() + ": " +
 					"found " + bi.getPreferredLocation());
 			return true;

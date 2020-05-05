@@ -11,6 +11,7 @@ package org.ogema.launcher.resolver;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -93,13 +94,14 @@ public class MavenResolver extends BundleResolver {
     private boolean _offline = false;
     private boolean _mavenRemoteFirst = true; //check remote repositories before local?
     private String _repositoryConfig;
+    private final boolean fileByReference;
 
-    protected MavenResolver(boolean offline, String repositoryConfig) {
+    protected MavenResolver(boolean offline, String repositoryConfig, boolean fileByReference) {
         this._offline = offline;
         _repositoryConfig = repositoryConfig == null
                 ? System.getProperty(REPOSITORY_CONFIG, REPOSITORY_CONFIG_DEFAULT)
                 : repositoryConfig;
-
+        this.fileByReference = fileByReference;
         String mavenHome = System.getenv("M2_HOME");
         String user_home = System.getProperty("user.home");
         File mavenUserSettingsFile = new File(user_home, ".m2/settings.xml");
@@ -521,7 +523,12 @@ public class MavenResolver extends BundleResolver {
 
         if (artifactFile != null) {
             bi.setMavenArtifactLocation(artifactFile.toURI());
-            bi.setPreferredLocation(artifactFile.toURI());
+            if (fileByReference) {
+                URI u = URI.create("reference:" + artifactFile.toURI());
+                bi.setPreferredLocation(u);
+            } else {
+                bi.setPreferredLocation(artifactFile.toURI());
+            }
             return true;
         } else {
             OgemaLauncher.LOGGER.log(Level.FINE, this.getClass().getSimpleName() + " - WARNING: {0} not found via maven",

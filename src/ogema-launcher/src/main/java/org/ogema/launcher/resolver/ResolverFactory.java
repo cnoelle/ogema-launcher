@@ -25,10 +25,11 @@ public class ResolverFactory {
 	 */
 	public static BundleResolver createResolverChain(CommandLine options) {
 		boolean rundirOnly = options.hasOption(LauncherConstants.KnownProgOptions.USE_RUNDIR_ONLY.getSwitch());
+        boolean fileAsReference = options.hasOption(LauncherConstants.KnownProgOptions.REFERENCE.getLongSwitch());
 		if(rundirOnly) {
 			// we will only use the binaries that can be found in the rundir
 			BundleResolver.setWorkspaceResolver(new WorkspaceBundleResolver(null));
-			return new BundleFileResolver();
+			return new BundleFileResolver(fileAsReference);
 		}
 		// the workspace resolver is set explicitly as a static reference to
 		// the BundleResolver chain -> for more detailed info @see BundleResolver
@@ -40,13 +41,13 @@ public class ResolverFactory {
 		// our chain of responsibility:
 		boolean offline = options.hasOption(LauncherConstants.KnownProgOptions.OFFLINE.getSwitch());
         String repCfgFile = options.getOptionValue(LauncherConstants.KnownProgOptions.REPOSITORIES.getLongSwitch(), null);
-		BundleResolver result = new MavenResolver(offline, repCfgFile);
+		BundleResolver result = new MavenResolver(offline, repCfgFile, fileAsReference);
 		
 		// result must not change... use result.setNext(...).setNext(...) ... 
 		// to add new resolver to this chain otherwise the first resolver
 		// that was stored in result won't be involved. Use a "BundleResolver tmp"
 		// var if necessary ...
-		result.setNext(new BundleFileResolver());
+		result.setNext(new BundleFileResolver(fileAsReference));
 
 		return result;
 	}

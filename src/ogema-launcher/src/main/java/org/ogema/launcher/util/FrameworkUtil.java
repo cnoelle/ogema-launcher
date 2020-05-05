@@ -15,6 +15,8 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.Iterator;
@@ -37,10 +39,18 @@ public class FrameworkUtil {
 	
 //	@SuppressWarnings({"unchecked", "rawtypes"})
 	public static URLClassLoader addFwkBundleToClasspath(final BundleInfo frameworkBundle, final ClassLoader baseClassLoader) {
-		File fwkBundle = new File(frameworkBundle.getPreferredLocation().getSchemeSpecificPart());
+        URI u = frameworkBundle.getPreferredLocation();
+        if (u.toString().startsWith("reference:")) {
+            try {
+                u = new URI(u.toString().substring("reference:".length()));
+            } catch (URISyntaxException ex) {
+                throw new RuntimeException(ex);
+            }
+        }
+		File fwkBundle = new File(u.getPath());
 		if (fwkBundle.exists()) {
 			try {
-				final URL url = frameworkBundle.getPreferredLocation().toURL();
+				final URL url = u.toURL();
 				// we create a new classloader for the framework bundle everytime the framework is restartet
 				// this is required for instance to ensure updated framework extensions are properly taken into
 				// account in the class path
@@ -131,6 +141,17 @@ public class FrameworkUtil {
 		}
 		return result;
 	}
+    
+    /**
+     * True iff version a is the same or newer and compatible (according to semantic versioning)
+     * version of b.
+     * @param va 
+     * @param vb 
+     * @return a is newer but backwards compatible
+     */
+    public static boolean isSameOrNewerAndCompatible(Version va, Version vb) {
+       return va.getMajor() == vb.getMajor() && va.compareTo(vb) >= 0;
+    }
 	
 	/**
 	 * Get the framework storage and create the directory if it doesn't exist yet.

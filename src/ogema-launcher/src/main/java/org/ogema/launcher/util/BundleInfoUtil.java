@@ -27,13 +27,13 @@ public class BundleInfoUtil {
 	public static void addVersionToBundleInfo(BundleInfo bi)
 			throws InitBundleInfoException {
 		bi.setVersion(BundleInfoUtil.getBundleVersionFromJar(
-				new File(bi.getPreferredLocation().getSchemeSpecificPart())));
+				bi.getPreferredLocationFile()));
 	}
 
 	public static void addSymbolicNameToBundleInfo(BundleInfo bi)
 			throws InitBundleInfoException {
 		bi.setSymbolicName(BundleInfoUtil.getSymbolicNameFromJar(
-				new File(bi.getPreferredLocation().getSchemeSpecificPart())));
+				bi.getPreferredLocationFile()));
 	}
 
 	public static String getSymbolicNameFromJar(File file)

@@ -645,7 +645,15 @@ public class OgemaFramework {
 		ArrayList<Bundle> tmpCurrInstalled = new ArrayList<Bundle>(currInstalled);
 		for (Iterator<Bundle> i = tmpCurrInstalled.iterator(); i.hasNext() && !tmpToInstall.isEmpty();) {
 			Bundle installedBundle = i.next();
-			BundleInfo closestBundle = FrameworkUtil.getClosestBundle(tmpToInstall, installedBundle);
+			//BundleInfo closestBundle = FrameworkUtil.getClosestBundle(tmpToInstall, installedBundle);
+            BundleInfo closestBundle = null;
+            Version bestVersion = installedBundle.getVersion();
+            for (BundleInfo bi: tmpToInstall) {
+                if (FrameworkUtil.isSameOrNewerAndCompatible(bi.getVersion(), bestVersion)) {
+                    closestBundle = bi;
+                    bestVersion = bi.getVersion();
+                }
+            }
 			if (closestBundle == null) {
 				OgemaLauncher.LOGGER.log(Level.WARNING, "Bundle not found: " + installedBundle.getSymbolicName());
 				continue;
@@ -831,14 +839,7 @@ public class OgemaFramework {
 						OgemaLauncher.LOGGER.finer("installing bundle: " + bi.getPreferredLocation());
                         URI preferedUri = bi.getPreferredLocation();
                         String installUrlString = preferedUri.toString();
-                        if (configuration.getOptions().hasOption(LauncherConstants.KnownProgOptions.REFERENCE.getLongSwitch())) {
-                            if (preferedUri.getScheme().equalsIgnoreCase("file")) {
-                                installUrlString = "reference:" + preferedUri.toString();
-                                OgemaLauncher.LOGGER.finer("installing bundle as reference: " + installUrlString);
-                            }
-                        }
 						fwkContext.installBundle(installUrlString);
-
 					}
 					// ??
 				} catch (IllegalStateException e) {
@@ -1185,7 +1186,7 @@ public class OgemaFramework {
 		}
 
 		if (in == null) {
-			in = new FileInputStream(new File(newBundle.getPreferredLocation()));
+			in = new FileInputStream(newBundle.getPreferredLocationFile());
 		}
 		oldBundle.update(in);
 	}
@@ -1268,7 +1269,7 @@ public class OgemaFramework {
 		final URI location = bi.getPreferredLocation();
 		if (location.getScheme().equals("file")) {
 			try {
-				File file = new File(bi.getPreferredLocation().getPath());
+				File file = bi.getPreferredLocationFile();
 				if (!file.isAbsolute())
 					file = new File(file.getAbsolutePath());
 				bi.setPreferredLocation(file.toURI());
