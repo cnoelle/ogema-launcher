@@ -9,6 +9,7 @@
 package org.ogema.launcher;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.logging.Level;
@@ -263,7 +264,9 @@ public class BundleInfo implements Comparable<BundleInfo> {
             case "file" : return new File(preferredLocation.getPath());
             case "reference" : {
                 try {
-                    return new File(new URI(preferredLocation.getSchemeSpecificPart()).getPath());
+                    URI inner = new URI(preferredLocation.getSchemeSpecificPart());
+                    String file = inner.getSchemeSpecificPart();
+                    return new File(file);
                 } catch (URISyntaxException ex) {
                     OgemaLauncher.LOGGER.log(Level.SEVERE, "", ex);
                     return null;

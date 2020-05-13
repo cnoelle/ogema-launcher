@@ -18,18 +18,18 @@ public interface ConfigurationConstants {
 	
 	// gogo shell bundles
 	String GOGO_SHELL_BUNDLE_GROUP_ID = "org.apache.felix";
-	String GOGO_SHELL_BUNDLE_ARTIFACT_ID = "org.apache.felix.gogo.shell";
-	String GOGO_SHELL_BUNDLE_VERSION = "0.10.0";
+	String GOGO_SHELL_BUNDLE_ARTIFACT_ID = "org.apache.felix.gogo.jline";
+	String GOGO_SHELL_BUNDLE_VERSION = "1.1.0";
 	String GOGO_SHELL_BUNDLE = GOGO_SHELL_BUNDLE_GROUP_ID + ":" + GOGO_SHELL_BUNDLE_ARTIFACT_ID + ":" + GOGO_SHELL_BUNDLE_VERSION;
 	
 	String GOGO_RUNTIME_BUNDLE_GROUP_ID = "org.apache.felix";
 	String GOGO_RUNTIME_BUNDLE_ARTIFACT_ID = "org.apache.felix.gogo.runtime";
-	String GOGO_RUNTIME_BUNDLE_VERSION = "0.12.1";
+	String GOGO_RUNTIME_BUNDLE_VERSION = "1.1.2";
 	String GOGO_RUNTIME_BUNDLE = GOGO_RUNTIME_BUNDLE_GROUP_ID + ":" + GOGO_RUNTIME_BUNDLE_ARTIFACT_ID + ":" + GOGO_RUNTIME_BUNDLE_VERSION;
 	
 	String GOGO_CMD_BUNDLE_GROUP_ID = "org.apache.felix";
 	String GOGO_CMD_BUNDLE_ARTIFACT_ID = "org.apache.felix.gogo.command";
-	String GOGO_CMD_BUNDLE_VERSION = "0.14.0";
+	String GOGO_CMD_BUNDLE_VERSION = "1.1.0";
 	String GOGO_CMD_BUNDLE = GOGO_CMD_BUNDLE_GROUP_ID + ":" + GOGO_CMD_BUNDLE_ARTIFACT_ID + ":" + GOGO_CMD_BUNDLE_VERSION;
 	
 	String SHELL_REMOTE_BUNDLE_GROUP_ID = "org.apache.felix";

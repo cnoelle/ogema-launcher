@@ -280,7 +280,8 @@ public abstract class AbstractPackagingUtil {
 				File target = bi.getBuildLocation();
 				URI preferredLocation = bi.getPreferredLocation();
 				if(preferredLocation.getScheme() != null
-						&& preferredLocation.getScheme().equals("reference")) {
+						&& preferredLocation.getScheme().equals("reference")
+                        && !preferredLocation.toString().endsWith(".jar")) { //XXX: better check location is directory?
 					// bundle that should be added to zip is in workspace -> build jar
 					// remove "reference:" from uri because it is OSGi specific
 					OgemaLauncher.LOGGER.finer("creating jar at " +
@@ -293,6 +294,9 @@ public abstract class AbstractPackagingUtil {
 					// preferred location references a jar file -> copy it to build location
 					OgemaLauncher.LOGGER.finer("copying maven artifact to " +
 							target.getAbsolutePath());
+                    if (preferredLocation.toString().startsWith("reference:")) {
+                        preferredLocation = URI.create(preferredLocation.getSchemeSpecificPart());
+                    }
 					if(preferredLocation.isOpaque()) {
 						// file util will throw an exception if uri is opaque:
 						preferredLocation = new URL(new File(".").toURI().toURL(), preferredLocation.toString()).toURI();

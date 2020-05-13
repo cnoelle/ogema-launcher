@@ -517,7 +517,10 @@ public class OgemaFramework {
 			Bundle[] installedBundles = getBundlesFromFramework();
 			if (installOrUpdateBundles) {
 				Map<String, List<Bundle>> currInstalledBundles = initCurrInstalledBundles(installedBundles);
-				installOrUpdateBundles(currInstalledBundles, bundlesToInstall, framework, strictMode);
+				List<Bundle> bundlesToUninstall =
+                        installOrUpdateBundles(currInstalledBundles, bundlesToInstall, framework, strictMode);
+                bundlesToUninstall = UserInstalledFiles.removeUserInstalled(bundlesToUninstall);
+                uninstallBundles(bundlesToUninstall);
 				if (updateBundles) { // felix: refresh causes reinitialization of the OSGi security
 //					framework.getBundleContext().addBundleListener(bundleListener);
 					final RestartType restart = refreshBundles();
@@ -552,6 +555,7 @@ public class OgemaFramework {
 				}
 			}
             framework.getBundleContext().addBundleListener(new UninstalledFiles().getListener());
+            framework.getBundleContext().addBundleListener(new UserInstalledFiles().getListener());
 			// start framework now -> starting it earlier will lead to non updated
 			// bundles at the initial start if clean flag isn't set.
 			startFramework();

@@ -47,7 +47,7 @@ public class FrameworkUtil {
                 throw new RuntimeException(ex);
             }
         }
-		File fwkBundle = new File(u.getPath());
+		File fwkBundle = new File(u.getSchemeSpecificPart());
 		if (fwkBundle.exists()) {
 			try {
 				final URL url = u.toURL();

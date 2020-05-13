@@ -46,6 +46,7 @@ public class FelixConfiguration extends FrameworkConfiguration {
 			addToBundles(gogoCommand);
 		}
 		
+        /*
 		if(port != null && !port.isEmpty()) {
 			// activate remote shell
 			if(!containsBundle(SHELL_REMOTE_BUNDLE_GROUP_ID, SHELL_REMOTE_BUNDLE_ARTIFACT_ID)) {
@@ -59,6 +60,7 @@ public class FelixConfiguration extends FrameworkConfiguration {
 			// max connections defaults to 2
 			// socket timeout defaults to 0
 		}
+        */
 	}
 
 }
