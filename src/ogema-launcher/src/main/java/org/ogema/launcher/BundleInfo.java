@@ -9,17 +9,27 @@
 package org.ogema.launcher;
 
 import java.io.File;
-import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Comparator;
 import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.ogema.launcher.resolver.BundleFileResolver;
 import org.ogema.launcher.resolver.WorkspaceBundleResolver;
 import org.osgi.framework.Version;
 
 public class BundleInfo implements Comparable<BundleInfo> {
+    
+    public static final Comparator<BundleInfo> BSN_VERSION_ORDER = new Comparator<BundleInfo>() {
+        @Override
+        public int compare(BundleInfo o1, BundleInfo o2) {
+            int c1 = o1.getSymbolicName().compareTo(o2.getSymbolicName());
+            return c1 != 0
+                    ? c1
+                    : o1.getVersion().compareTo(o2.getVersion());
+        }
+    };
+    
 	/**
 	 * The symbolic name of the bundle. Needed by the {@link WorkspaceBundleResolver}
 	 * and the update process.

@@ -35,7 +35,9 @@ import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 import java.util.logging.Level;
+import java.util.stream.Collectors;
 
 import org.apache.commons.cli.CommandLine;
 import org.ogema.launcher.LauncherConstants.KnownProgOptions;
@@ -638,57 +640,73 @@ public class OgemaFramework {
 
 	/**
 	 * Compare currently installed bundles with those that should be installed.
-	 * Update, install or uninstall if necessary.
+	 * Update or install as necessary.
 	 */
-	private static void cmpAndProcessBundles(List<Bundle> currInstalled, List<BundleInfo> toInstall,
+	private static void processNewBundles(List<Bundle> currInstalled, List<BundleInfo> toInstall,
 			BundleContext context, boolean strictMode) throws FileNotFoundException, BundleException {
-		// check if multiple versions of the bundle are installed -> if so choose the
-		// one
-		// that is the closest to this version and update it:
-		ArrayList<BundleInfo> tmpToInstall = new ArrayList<BundleInfo>(toInstall);
-		ArrayList<Bundle> tmpCurrInstalled = new ArrayList<Bundle>(currInstalled);
+        // for every installed bundle check if the toInstall list contains
+        // an update version (according to semantic versioning).
+        // If so, update the installed bundle.
+        // New bundles that are not updates are installed.
+        Map<BundleInfo, String> tmpToInstall = new HashMap<>();
+        Predicate<BundleInfo> noNewerVersionInToInstall = bi -> {
+            return !toInstall.stream().filter(ti ->
+                    bi != ti
+                    && FrameworkUtil.isSameOrNewerAndCompatible(ti.getVersion(), bi.getVersion())
+            ).findFirst().isPresent();
+        };
+        toInstall.stream()
+                .filter(noNewerVersionInToInstall)
+                .forEach(bi -> tmpToInstall.put(bi, null));
+		List<Bundle> tmpCurrInstalled = new ArrayList<>(currInstalled);
 		for (Iterator<Bundle> i = tmpCurrInstalled.iterator(); i.hasNext() && !tmpToInstall.isEmpty();) {
 			Bundle installedBundle = i.next();
-			//BundleInfo closestBundle = FrameworkUtil.getClosestBundle(tmpToInstall, installedBundle);
             BundleInfo closestBundle = null;
             Version bestVersion = installedBundle.getVersion();
-            for (BundleInfo bi: tmpToInstall) {
+            for (BundleInfo bi: tmpToInstall.keySet()) {
                 if (FrameworkUtil.isSameOrNewerAndCompatible(bi.getVersion(), bestVersion)) {
                     closestBundle = bi;
                     bestVersion = bi.getVersion();
                 }
             }
 			if (closestBundle == null) {
-				OgemaLauncher.LOGGER.log(Level.WARNING, "Bundle not found: " + installedBundle.getSymbolicName());
+				OgemaLauncher.LOGGER.log(Level.WARNING,
+                        "Bundle not found: " + installedBundle.getSymbolicName());
 				continue;
 			}
 			if (OgemaLauncher.LOGGER.isLoggable(Level.FINER)) {
 				if (installedBundle.getVersion().equals(closestBundle.getVersion())) {
-					OgemaLauncher.LOGGER.finer("updating bundle: " + installedBundle.getSymbolicName() + "-"
-							+ installedBundle.getVersion());
+					OgemaLauncher.LOGGER.finer(
+                            "updating bundle: " + installedBundle.getSymbolicName()
+                                    + "-" + installedBundle.getVersion());
 				} else {
 					OgemaLauncher.LOGGER.finer(
-							"updating bundle: " + installedBundle.getSymbolicName() + "-" + installedBundle.getVersion()
-									+ " to " + closestBundle.getSymbolicName() + "-" + closestBundle.getVersion());
+							"updating bundle: " + installedBundle.getSymbolicName()
+                                    + "-" + installedBundle.getVersion()
+									+ " to " + closestBundle.getSymbolicName()
+                                    + "-" + closestBundle.getVersion());
 				}
 			}
 			try {
 				updateBundle(installedBundle, closestBundle);
+                tmpToInstall.put(closestBundle, "replaced older version");
 			} catch (BundleException | NullPointerException | FileNotFoundException e) {
 				OgemaLauncher.LOGGER.log(Level.WARNING, "Bundle update failed", e);
 				if (strictMode)
 					throw e;
 				continue;
 			}
-			tmpToInstall.remove(closestBundle);
-			i.remove();
+            //tmpToInstall.remove(closestBundle)
 		}
 
 		// check if there are more bundles to install
-		for (BundleInfo info : tmpToInstall) {
-			OgemaLauncher.LOGGER.finer("installing bundle: " + info.getPreferredLocation());
-			context.installBundle(info.getPreferredLocation().toString());
-		}
+        for (BundleInfo info : tmpToInstall.keySet()) {
+            if (tmpToInstall.get(info) == null) {
+                OgemaLauncher.LOGGER.finer("installing new bundle: " + info.getPreferredLocation());
+                Bundle bundle = context.installBundle(info.getPreferredLocation().toString());
+                startBundle(info.getStartLevel(), bundle, info.isStart());
+            }
+        }
 	}
 
 	@SuppressWarnings("unused")
@@ -826,39 +844,57 @@ public class OgemaFramework {
 		Map<String, List<Bundle>> tmpInstalledBundlesNotInConfig = new HashMap<String, List<Bundle>>(
 				currInstalledBundles);
 		BundleContext fwkContext = framework.getBundleContext();
-		for (String symbolicName : bundlesToInstall.keySet()) {
-			for (BundleInfo bi : bundlesToInstall.get(symbolicName)) {
-				try {
-					if (tmpInstalledBundlesNotInConfig.containsKey(symbolicName)) {
-						// already installed: check if we have multiple versions installed of this
-						// bundle
-						// and update the bundle whose version is the closest to the one in the cfg file
-						cmpAndProcessBundles(tmpInstalledBundlesNotInConfig.get(symbolicName),
-								bundlesToInstall.get(symbolicName), fwkContext, strictMode);
-
-						// is in config -> remove from tmp list ...
-						tmpInstalledBundlesNotInConfig.remove(symbolicName);
-					} else {
-						// not installed yet:
-						OgemaLauncher.LOGGER.finer("installing bundle: " + bi.getPreferredLocation());
+        for (String symbolicName : bundlesToInstall.keySet()) {
+            List<BundleInfo> configBundles = bundlesToInstall.get(symbolicName);
+            try {
+                if (tmpInstalledBundlesNotInConfig.containsKey(symbolicName)) {
+                    // already installed: check if we have multiple versions installed of this
+                    // bundle and update eligible bundles
+                    List<Bundle> installed = tmpInstalledBundlesNotInConfig.get(symbolicName);
+                    processNewBundles(installed, configBundles, fwkContext, strictMode);
+                    // find installed bundles that have no compatible version in config
+                    List<Bundle> toUninstall = installed.stream()
+                            .filter(b -> configBundles.stream()
+                            .noneMatch(bi -> bi.getVersion().getMajor() == b.getVersion().getMajor()))
+                            .collect(Collectors.toList());
+                    if (!toUninstall.isEmpty()) {
+                        tmpInstalledBundlesNotInConfig.put(symbolicName, toUninstall);
+                    } else {
+                        // is in config -> remove from tmp list ...
+                        tmpInstalledBundlesNotInConfig.remove(symbolicName);
+                    }
+                } else {
+                    configBundles.sort(BundleInfo.BSN_VERSION_ORDER.reversed());
+                    List<Version> installedVersions = new ArrayList<>(configBundles.size());
+                    // not installed yet:
+                    for (BundleInfo bi : configBundles) {
+                        if (installedVersions.stream()
+                                .filter(v -> v.getMajor() == bi.getVersion().getMajor()).findAny().isPresent()) {
+                            //XXX need a command line switch for this behaviour?
+                            OgemaLauncher.LOGGER.finer("have newer version of: " + bi.getPreferredLocation());
+                            continue;
+                        }
+                        OgemaLauncher.LOGGER.finer("installing bundle: " + bi.getPreferredLocation());
                         URI preferedUri = bi.getPreferredLocation();
                         String installUrlString = preferedUri.toString();
-						fwkContext.installBundle(installUrlString);
-					}
-					// ??
-				} catch (IllegalStateException e) {
-					OgemaLauncher.LOGGER.warning("Error initializing bundle " + bi + ": " + e.getLocalizedMessage());
-					if (strictMode)
-						throw new RuntimeException("Error while initializing the framework: ", e);
-					fwkContext = framework.getBundleContext();
-				} catch (FileNotFoundException | BundleException | ArrayIndexOutOfBoundsException e) {
-					OgemaLauncher.LOGGER.warning("Error initializing bundle " + bi + ": " + e.getLocalizedMessage());
-					if (strictMode)
-						throw new RuntimeException("Error while initializing the framework: ", e);
-				}
-			}
+                        fwkContext.installBundle(installUrlString);
+                        installedVersions.add(bi.getVersion());
+                    }
+                }
+                // ??
+            } catch (IllegalStateException e) {
+                OgemaLauncher.LOGGER.warning("Error initializing bundle " + symbolicName + ": " + e.getLocalizedMessage());
+                if (strictMode) {
+                    throw new RuntimeException("Error while initializing the framework: ", e);
+                }
+                fwkContext = framework.getBundleContext();
+            } catch (FileNotFoundException | BundleException | ArrayIndexOutOfBoundsException e) {
+                OgemaLauncher.LOGGER.warning("Error initializing bundle " + symbolicName + ": " + e.getLocalizedMessage());
+                if (strictMode) {
+                    throw new RuntimeException("Error while initializing the framework: ", e);
+                }
+            }
 		}
-
 		List<Bundle> installedBundlesNotInConfig = new ArrayList<>();
 		// those bundles left in tmpInstalledBundlesNotInConfig are not in config file
 		// but installed
