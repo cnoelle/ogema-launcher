@@ -38,6 +38,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.apache.commons.cli.CommandLine;
 import org.ogema.launcher.LauncherConstants.KnownProgOptions;
@@ -378,9 +379,9 @@ public class OgemaFramework {
 		final URLClassLoader frameworkClassLoader = FrameworkUtil
 				.addFwkBundleToClasspath(frameworkConfig.getFrameworkBundle(), baseClassLoader);
 		Set<BundleInfo> bundlesWithoutDuplicates = new LinkedHashSet<>();
-		boolean frameworkClean = !FrameworkUtil.frameworkStorageExists(frameworkConfig);
+		final boolean frameworkClean = !FrameworkUtil.frameworkStorageExists(frameworkConfig);
 		clean |= frameworkClean;
-		boolean installOrUpdateBundles = clean || updateBundles;
+		final boolean installOrUpdateBundles = clean || updateBundles;
 		if (installOrUpdateBundles || isBuildSwitchSet || createDeploymentPackage) {
 			// resolve bundles
 			List<BundleInfo> missingBundles = resolverChain.resolveBundles(bundles);
@@ -614,30 +615,6 @@ public class OgemaFramework {
 		}
 	}
 
-	@SuppressWarnings("unused")
-	private int startBundles(Bundle[] installedBundles) {
-		int maxStartLevel = 1;
-		for (Bundle b : installedBundles) {
-			String location = b.getLocation();
-			if (FrameworkUtil.isFragment(b.adapt(BundleRevision.class)) || location.equalsIgnoreCase("system bundle")) {
-				continue;
-			}
-			int sl = b.adapt(BundleStartLevel.class).getStartLevel();
-			if (sl > maxStartLevel) {
-				maxStartLevel = sl;
-			}
-
-			try {
-				startBundle(sl, b, true);
-			} catch (BundleException e) {
-				OgemaLauncher.LOGGER
-						.warning("Failed to start: " + b.getSymbolicName() + ", cause: " + e.getLocalizedMessage());
-			}
-		}
-
-		return maxStartLevel;
-	}
-
 	/**
 	 * Compare currently installed bundles with those that should be installed.
 	 * Update or install as necessary.
@@ -753,7 +730,7 @@ public class OgemaFramework {
 			Map<String, List<BundleInfo>> bundlesToInstall, Bundle[] bundles) {
 		TreeMap<Integer, Map<Bundle, Boolean>> result = new TreeMap<Integer, Map<Bundle, Boolean>>();
 		Map<String, List<BundleInfo>> tmpToInstall = new HashMap<String, List<BundleInfo>>(bundlesToInstall);
-		for (Bundle b : bundles) {
+        for (Bundle b : bundles) {
 			List<BundleInfo> biList = tmpToInstall.get(b.getSymbolicName());
 			if (biList != null) {
 				BundleInfo bi;
@@ -769,7 +746,6 @@ public class OgemaFramework {
 					bundleMap = new HashMap<>();
 				}
 				bundleMap.put(b, bi.isStart());
-
 				result.put(bi.getStartLevel(), bundleMap);
 			}
 		}
@@ -877,7 +853,8 @@ public class OgemaFramework {
                         OgemaLauncher.LOGGER.finer("installing bundle: " + bi.getPreferredLocation());
                         URI preferedUri = bi.getPreferredLocation();
                         String installUrlString = preferedUri.toString();
-                        fwkContext.installBundle(installUrlString);
+                        Bundle b = fwkContext.installBundle(installUrlString);
+                        startBundle(bi.getStartLevel(), b, bi.isStart());
                         installedVersions.add(bi.getVersion());
                     }
                 }
@@ -1151,7 +1128,8 @@ public class OgemaFramework {
 	 *
 	 * @param bundlesWithStartLevels
 	 *            - bundles sorted in ascending order regarding to their start
-	 *            level. return This method will return the highest start level one
+	 *            level.
+     * @return This method will return the highest start level one
 	 *            or more bundles have.
 	 */
 	private static int startBundles(TreeMap<Integer, Map<Bundle, Boolean>> bundlesWithStartLevels) {
