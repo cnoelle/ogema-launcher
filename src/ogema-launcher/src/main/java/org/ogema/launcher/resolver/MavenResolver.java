@@ -10,6 +10,7 @@ package org.ogema.launcher.resolver;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.util.ArrayList;
@@ -81,9 +82,9 @@ public class MavenResolver extends BundleResolver {
     private static final String DEFAULT_SNAPSHOT_UPDATE_POLICY = RepositoryPolicy.UPDATE_POLICY_DAILY;
     private static final String DEFAULT_CHECKSUM_POLICY = RepositoryPolicy.CHECKSUM_POLICY_FAIL;
 
-    private static final RepositoryPolicy DEF_DISABLED_POLICY = new RepositoryPolicy(false, RepositoryPolicy.UPDATE_POLICY_NEVER, null);
-    private static final RepositoryPolicy DEF_RELEASE_POLICY = new RepositoryPolicy(true, DEFAULT_RELEASE_UPDATE_POLICY, DEFAULT_CHECKSUM_POLICY);
-    private static final RepositoryPolicy DEF_SNAPSHOT_POLICY = new RepositoryPolicy(true, DEFAULT_SNAPSHOT_UPDATE_POLICY, DEFAULT_CHECKSUM_POLICY);
+    static final RepositoryPolicy DEF_DISABLED_POLICY = new RepositoryPolicy(false, RepositoryPolicy.UPDATE_POLICY_NEVER, null);
+    static final RepositoryPolicy DEF_RELEASE_POLICY = new RepositoryPolicy(true, DEFAULT_RELEASE_UPDATE_POLICY, DEFAULT_CHECKSUM_POLICY);
+    static final RepositoryPolicy DEF_SNAPSHOT_POLICY = new RepositoryPolicy(true, DEFAULT_SNAPSHOT_UPDATE_POLICY, DEFAULT_CHECKSUM_POLICY);
 
     // TODO: command line switch for remoteFirst?
     protected RepositorySystem _repoSys;
@@ -94,6 +95,7 @@ public class MavenResolver extends BundleResolver {
     private boolean _offline = false;
     private boolean _mavenRemoteFirst = true; //check remote repositories before local?
     private String _repositoryConfig;
+    private LauncherRepositoryProperties launcherRepoProps;
     private final boolean fileByReference;
 
     protected MavenResolver(boolean offline, String repositoryConfig, boolean fileByReference) {
@@ -101,6 +103,7 @@ public class MavenResolver extends BundleResolver {
         _repositoryConfig = repositoryConfig == null
                 ? System.getProperty(REPOSITORY_CONFIG, REPOSITORY_CONFIG_DEFAULT)
                 : repositoryConfig;
+        launcherRepoProps = new LauncherRepositoryProperties(_repositoryConfig);
         this.fileByReference = fileByReference;
         String mavenHome = System.getenv("M2_HOME");
         String user_home = System.getProperty("user.home");
@@ -146,14 +149,14 @@ public class MavenResolver extends BundleResolver {
 
         }
         File localRepoDir = new File(localRepository);
-
+        localRepoDir = launcherRepoProps.getLocalRepository(localRepoDir);
         LocalRepository localRepo = new LocalRepository(localRepoDir);
         _repoSys = newRepositorySystem();
         _session = newSession(_repoSys, localRepo);
 
         Map<String, RemoteRepository> prototypes = new LinkedHashMap<>();
         // adding default ogema repositories first... can be overridden by maven settings
-        initDefaultRepositories(prototypes);
+        launcherRepoProps.initDefaultRepositories(prototypes);
 
         /* Add all remote repositories found in local settings in all profiles. Memorize
 		 * if central Maven repository "central" is amongst them. */
@@ -226,90 +229,6 @@ public class MavenResolver extends BundleResolver {
             _remoteRepos.add(new RemoteRepository.Builder(prototype).setProxy(
                     proxy).build());
         }
-    }
-
-    /*
-	private void initDefaultRepositories(Map<String, RemoteRepository> prototypes) {
-		prototypes.put(OGEMA_REPO_BASE_URL + LIBS_REL_URL,
-				new RemoteRepository.Builder("ogema-releases", "default",
-				OGEMA_REPO_BASE_URL + LIBS_REL_URL).setSnapshotPolicy(DEF_DISABLED_POLICY)
-				.setReleasePolicy(DEF_RELEASE_POLICY).build());
-		prototypes.put(OGEMA_REPO_BASE_URL + LIBS_SNAP_URL,
-				new RemoteRepository.Builder("ogema-snapshots", "default",
-				OGEMA_REPO_BASE_URL + LIBS_SNAP_URL).setReleasePolicy(DEF_DISABLED_POLICY)
-				.setSnapshotPolicy(DEF_SNAPSHOT_POLICY).build());
-		prototypes.put(OGEMA_REPO_BASE_URL + REMOTE_REPOS_URL,
-				new RemoteRepository.Builder("remote-repos", "default",
-				OGEMA_REPO_BASE_URL + REMOTE_REPOS_URL).setReleasePolicy(DEF_RELEASE_POLICY)
-				.setSnapshotPolicy(DEF_SNAPSHOT_POLICY).build());
-		prototypes.put(OGEMA_REPO_BASE_URL + EXT_OS_URL,
-				new RemoteRepository.Builder("external-opensource", "default",
-				OGEMA_REPO_BASE_URL + EXT_OS_URL).setReleasePolicy(DEF_RELEASE_POLICY)
-				.setSnapshotPolicy(DEF_DISABLED_POLICY).build());
-	}
-     */
-    private void initDefaultRepositories(Map<String, RemoteRepository> prototypes) {
-        try {
-            Properties p = new Properties();
-
-            if (new File(_repositoryConfig).exists()) {
-                try ( InputStream is = new FileInputStream(new File(_repositoryConfig))) {
-                    p.load(is);
-                }
-                OgemaLauncher.LOGGER.log(Level.FINE, String.format("configuring maven repositories from file %s", _repositoryConfig));
-            } else {
-                try ( InputStream is = getClass().getResourceAsStream("/org/ogema/launcher/props/repositories.properties")) {
-                    p.load(is);
-                }
-                OgemaLauncher.LOGGER.log(Level.FINE, "configuring maven repositories from internal configuration file");
-            }
-
-            String[] ids = p.get("ids").toString().split(",\\s*");
-            for (String id : ids) {
-                String url = p.getProperty(id).toString();
-
-                RepositoryPolicy snapshotPolicy = DEF_SNAPSHOT_POLICY;
-                String snapshotPolicyParams = (String) p.getProperty(id + ".snapshot-policy");
-                if (snapshotPolicyParams != null) {
-                    snapshotPolicy = parsePolicy(snapshotPolicyParams);
-                }
-
-                RepositoryPolicy releasePolicy = DEF_RELEASE_POLICY;
-                String releasePolicyParams = (String) p.getProperty(id + ".release-policy");
-                if (releasePolicyParams != null) {
-                    releasePolicy = parsePolicy(releasePolicyParams);
-                }
-                String user = (String) p.getProperty(id + ".user");
-                String password = (String) p.getProperty(id + ".password");
-                Authentication auth = null;
-                if (user != null && password != null) {
-                    OgemaLauncher.LOGGER.log(Level.FINE, "adding authentication for {0}", url);
-                    auth = new AuthenticationBuilder().addUsername(user).addPassword(password).build();
-                }
-                RemoteRepository repo = new RemoteRepository.Builder(id, "default", url)
-                        .setReleasePolicy(releasePolicy).setSnapshotPolicy(snapshotPolicy)
-                        .setAuthentication(auth).build();
-                prototypes.put(url, repo);
-            }
-
-            if (OgemaLauncher.LOGGER.isLoggable(Level.FINE)) {
-                OgemaLauncher.LOGGER.log(Level.FINE, String.format("%d remote repositories:", prototypes.size()));
-                for (Map.Entry<String, RemoteRepository> entry : prototypes.entrySet()) {
-                    OgemaLauncher.LOGGER.log(Level.FINE, entry.getValue().toString());
-                }
-            }
-        } catch (Exception ex) {
-            OgemaLauncher.LOGGER.log(Level.SEVERE,
-                    String.format("error parsing repository configuration (%s?): %s", _repositoryConfig, ex.getMessage()), ex);
-        }
-    }
-
-    private static RepositoryPolicy parsePolicy(String propertyValue) {
-        String[] params = propertyValue.split(",\\s*");
-        boolean enabled = params[0].equalsIgnoreCase("enabled");
-        String updatePolicy = params[1];
-        String checksumPolicy = params.length > 2 ? params[2] : null;
-        return new RepositoryPolicy(enabled, updatePolicy, checksumPolicy);
     }
 
     private static RepositorySystem newRepositorySystem() {
