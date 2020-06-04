@@ -105,24 +105,34 @@ public class MavenResolver extends BundleResolver {
                 : repositoryConfig;
         launcherRepoProps = new LauncherRepositoryProperties(_repositoryConfig);
         this.fileByReference = fileByReference;
-        String mavenHome = System.getenv("M2_HOME");
-        String user_home = System.getProperty("user.home");
-        File mavenUserSettingsFile = new File(user_home, ".m2/settings.xml");
-        File mavenGlobalSettingsFile = null;
-        if (mavenHome != null) {
-            mavenGlobalSettingsFile = new File(mavenHome, "conf/settings.xml");
-        } else {
-            OgemaLauncher.LOGGER.warning(this.getClass().getSimpleName() + ": M2_HOME not set");
-            if (!mavenUserSettingsFile.exists()) {
-                OgemaLauncher.LOGGER.warning(
-                        this.getClass().getSimpleName() + ": no user settings found, working without any configuration");
+        if (!launcherRepoProps.isIgnoreSettings()) {
+            String mavenHome = System.getenv("M2_HOME");
+            String user_home = System.getProperty("user.home");
+            File mavenUserSettingsFile = new File(user_home, ".m2/settings.xml");
+            File mavenGlobalSettingsFile = null;
+            if (mavenHome != null) {
+                mavenGlobalSettingsFile = new File(mavenHome, "conf/settings.xml");
+            } else {
+                OgemaLauncher.LOGGER.warning(this.getClass().getSimpleName() + ": M2_HOME not set");
+                if (!mavenUserSettingsFile.exists()) {
+                    OgemaLauncher.LOGGER.warning(
+                            this.getClass().getSimpleName() + ": no user settings found, working without any configuration");
+                }
             }
-        }
-        try {
-            init(mavenGlobalSettingsFile, mavenUserSettingsFile);
-        } catch (SettingsBuildingException sbe) {
-            throw new RuntimeException("Maven SettingsBuildingException: "
-                    + sbe.getLocalizedMessage());
+            try {
+                init(mavenGlobalSettingsFile, mavenUserSettingsFile);
+            } catch (SettingsBuildingException sbe) {
+                throw new RuntimeException("Maven SettingsBuildingException: "
+                        + sbe.getLocalizedMessage());
+            }
+        } else {
+            OgemaLauncher.LOGGER.fine("ignoring system and user Maven settings.xml");
+            try {
+                init(null, null);
+            } catch (SettingsBuildingException sbe) {
+                throw new RuntimeException("Maven SettingsBuildingException: "
+                        + sbe.getLocalizedMessage());
+            }
         }
     }
 

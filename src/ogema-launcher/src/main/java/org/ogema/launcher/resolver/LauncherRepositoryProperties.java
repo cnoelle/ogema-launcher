@@ -23,6 +23,11 @@ class LauncherRepositoryProperties {
 
     private final String _repositoryConfig;
     private final Properties launcherRepositoryProperties = new Properties();
+    
+    /**
+     * Boolean property: ignore global and user Maven settings.xml files.
+     */
+    public static final String IGNORE_SETTINGS = "ignoreSettings";
 
     LauncherRepositoryProperties(String propertiesFile) {
         this._repositoryConfig = propertiesFile;
@@ -35,6 +40,10 @@ class LauncherRepositoryProperties {
 
     Properties getProperties() {
         return launcherRepositoryProperties;
+    }
+    
+    public boolean isIgnoreSettings() {
+        return Boolean.valueOf(getProperties().getProperty(IGNORE_SETTINGS));
     }
 
     private void loadProperties() throws IOException {
