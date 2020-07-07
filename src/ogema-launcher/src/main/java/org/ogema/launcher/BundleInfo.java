@@ -270,8 +270,9 @@ public class BundleInfo implements Comparable<BundleInfo> {
 	}
     
     public File getPreferredLocationFile() {
+        OgemaLauncher.LOGGER.log(Level.FINER, "getPreferedLocationFile {0}", preferredLocation);
         switch (preferredLocation.getScheme()) {
-            case "file" : return new File(preferredLocation.getPath());
+            case "file" : return new File(preferredLocation.getSchemeSpecificPart());
             case "reference" : {
                 try {
                     URI inner = new URI(preferredLocation.getSchemeSpecificPart());

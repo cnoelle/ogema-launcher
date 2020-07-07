@@ -30,6 +30,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
@@ -625,7 +626,7 @@ public class OgemaFramework {
         // an update version (according to semantic versioning).
         // If so, update the installed bundle.
         // New bundles that are not updates are installed.
-        Map<BundleInfo, String> tmpToInstall = new HashMap<>();
+        Map<BundleInfo, Optional<BundleInfo>> tmpToInstall = new HashMap<>(); //XXX may need value type
         Predicate<BundleInfo> noNewerVersionInToInstall = bi -> {
             return !toInstall.stream().filter(ti ->
                     bi != ti
@@ -647,6 +648,13 @@ public class OgemaFramework {
                 }
             }
 			if (closestBundle == null) {
+                Optional<BundleInfo> downgrade = toInstall.stream()
+                        .filter(bi ->
+                                installedBundle.getVersion().getMajor() == bi.getVersion().getMajor() && !installedBundle.getVersion().equals(bi.getVersion())).findAny();
+                if (downgrade.isPresent()) {
+                    tmpToInstall.put(downgrade.get(), downgrade);
+                    continue;
+                }
 				OgemaLauncher.LOGGER.log(Level.WARNING,
                         "Bundle not found: " + installedBundle.getSymbolicName());
 				continue;
@@ -666,7 +674,7 @@ public class OgemaFramework {
 			}
 			try {
 				updateBundle(installedBundle, closestBundle);
-                tmpToInstall.put(closestBundle, "replaced older version");
+                tmpToInstall.put(closestBundle, Optional.empty());
 			} catch (BundleException | NullPointerException | FileNotFoundException e) {
 				OgemaLauncher.LOGGER.log(Level.WARNING, "Bundle update failed", e);
 				if (strictMode)
@@ -678,13 +686,31 @@ public class OgemaFramework {
 
 		// check if there are more bundles to install
         for (BundleInfo info : tmpToInstall.keySet()) {
+            Optional<BundleInfo> toInstallVal = tmpToInstall.get(info);
             if (tmpToInstall.get(info) == null) {
-                OgemaLauncher.LOGGER.finer("installing new bundle: " + info.getPreferredLocation());
+                OgemaLauncher.LOGGER.log(Level.FINER, "installing new bundle: {0}", info.getPreferredLocation());
                 Bundle bundle = context.installBundle(info.getPreferredLocation().toString());
                 startBundle(info.getStartLevel(), bundle, info.isStart());
+            } else if (toInstallVal.isPresent()) {
+                Optional<Bundle> b = findInstalledBundle(context, info);
+                if (b.isPresent()) {
+                    OgemaLauncher.LOGGER.log(Level.INFO, "downgrading {0} {1} -> {2}",
+                            new Object[]{info.getSymbolicName(), b.get().getVersion(), toInstallVal.get().getVersion()});
+                    try (InputStream in = new FileInputStream(toInstallVal.get().getPreferredLocationFile())) {
+                        b.get().update(in);
+                    } catch (IOException ex) {
+                        OgemaLauncher.LOGGER.log(Level.SEVERE, "bundle downgrade failed", ex);
+                    }
+                }
             }
         }
 	}
+    
+    private static Optional<Bundle> findInstalledBundle(BundleContext context, BundleInfo info) {
+        return Stream.of(context.getBundles()).filter(
+                b -> b.getSymbolicName().equals(info.getSymbolicName())
+                && b.getVersion().getMajor() == info.getVersion().getMajor()).findAny();
+    }
 
 	@SuppressWarnings("unused")
 	private void dumpBundleInstallInfo(Bundle framework) throws IOException {

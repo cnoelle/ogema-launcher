@@ -71,10 +71,11 @@ public class XmlStaxConfigParser extends ConfigurationParser {
             throw new IllegalStateException("expected configuration element " + reader.getLocation());
         }
         reader.next();
-        Bundle frameworkBundle = acceptBundle(reader);
-        cfg.setFrameworkbundle(frameworkBundle);
-        
-        reader.next();
+        Bundle frameworkBundle = maybeAcceptBundle(reader);
+        if (frameworkBundle != null) {
+            cfg.setFrameworkbundle(frameworkBundle);
+            reader.next();
+        }
         cfg.setBundles(acceptBundles(reader));
         
         reader.next();
@@ -141,6 +142,13 @@ public class XmlStaxConfigParser extends ConfigurationParser {
             bundles.getBundle().add(acceptBundle(reader));
         }
         return bundles;
+    }
+    
+    private Bundle maybeAcceptBundle(XMLStreamReader reader) throws XMLStreamException {
+        if (reader.getEventType() != XMLStreamReader.START_ELEMENT || !(reader.getLocalName().equals("bundle")||reader.getLocalName().equals("frameworkbundle"))) {
+            return null;
+        }
+        return acceptBundle(reader);
     }
     
     private Bundle acceptBundle(XMLStreamReader reader) throws XMLStreamException {
